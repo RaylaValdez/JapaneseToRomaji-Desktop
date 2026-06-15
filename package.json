@@ -1,0 +1,39 @@
+{
+    "name": "japanese-to-romaji-injector",
+    "version": "1.0.0",
+    "description": "Injects Japanese ruby annotations into Discord via Chrome DevTools Protocol",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-builder build --win portable",
+        "dist": "electron-builder build --win portable --x64"
+    },
+    "build": {
+        "appId": "com.jp-romaji.injector",
+        "productName": "JapaneseToRomaji",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "main.js",
+            "inject.js",
+            "renderer/**/*",
+            "package.json"
+        ],
+        "win": {
+            "target": "portable",
+            "icon": null
+        },
+        "portable": {
+            "artifactName": "JapaneseToRomaji-${version}.exe"
+        },
+        "asar": false
+    },
+    "dependencies": {
+        "chrome-remote-interface": "0.34.0"
+    },
+    "devDependencies": {
+        "electron": "42.2.0",
+        "electron-builder": "26.8.1"
+    }
+}

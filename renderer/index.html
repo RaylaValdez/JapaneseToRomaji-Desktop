@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Japanese to Romaji — Injector</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <h1>Japanese to Romaji Injector</h1>
+            <span id="status" class="status">Initializing…</span>
+        </div>
+
+        <div id="connect-status" class="connect-status disconnected">
+            Not connected to Discord
+        </div>
+
+        <div class="settings-panel">
+            <h2>Settings</h2>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    <input type="checkbox" id="setting-annotateKanji">
+                    Annotate kanji
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    <input type="checkbox" id="setting-annotateKana">
+                    Annotate kana
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    <input type="checkbox" id="setting-showTooltip">
+                    Show kanji info tooltip on hover
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    <input type="checkbox" id="setting-annotateUsernames">
+                    Annotate usernames
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">Reading preference</label>
+                <select id="setting-readingPreference" class="setting-select">
+                    <option value="kun">Kun'yomi (訓読み)</option>
+                    <option value="on">On'yomi (音読み)</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    Ruby font size
+                    <span id="label-rubyFontSize" class="setting-value">75%</span>
+                </label>
+                <input type="range" id="setting-rubyFontSize" class="setting-range" min="30" max="200">
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">
+                    Tooltip font size
+                    <span id="label-tooltipFontSize" class="setting-value">85%</span>
+                </label>
+                <input type="range" id="setting-tooltipFontSize" class="setting-range" min="50" max="200">
+            </div>
+
+            <details class="setting-details">
+                <summary>Advanced</summary>
+                <div class="setting-row">
+                    <label class="setting-label">Discord path</label>
+                    <div class="setting-url-row">
+                        <input type="text" id="setting-discordPath" class="setting-url" placeholder="Auto-detect">
+                        <button id="reset-discordPath" class="btn-reset" title="Auto-detect">↺</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label">Debug port</label>
+                    <input type="number" id="setting-debugPort" class="setting-url" value="9222" min="1024" max="65535" style="width:80px">
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label">Kanji dictionary URL</label>
+                    <div class="setting-url-row">
+                        <input type="text" id="setting-dictUrl" class="setting-url">
+                        <button id="reset-dictUrl" class="btn-reset" title="Reset to default">↺</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label">Kana map URL</label>
+                    <div class="setting-url-row">
+                        <input type="text" id="setting-kanaUrl" class="setting-url">
+                        <button id="reset-kanaUrl" class="btn-reset" title="Reset to default">↺</button>
+                    </div>
+                </div>
+            </details>
+
+            <div class="actions">
+                <button id="btn-reconnect" class="btn">Reconnect to Discord</button>
+                <button id="btn-reinject" class="btn">Re-inject script</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
