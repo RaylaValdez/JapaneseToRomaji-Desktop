@@ -3,10 +3,13 @@ const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const CDP = require("chrome-remote-interface");
 
 const DEBUG_PORT = 9222;
-const DISCORD_EXES = ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"];
+const IS_WIN = process.platform === "win32";
+const IS_MAC = process.platform === "darwin";
+const IS_LINUX = process.platform === "linux";
 
 let mainWindow = null;
 let discordProcess = null;
@@ -17,17 +20,54 @@ let lastSettings = null;
 // --- paths ---
 function findDiscordPath(hint) {
     if (hint && fs.existsSync(hint)) return hint;
-    const localAppData = process.env.LOCALAPPDATA;
-    if (!localAppData) return null;
-    const discordBase = path.join(localAppData, "Discord");
-    if (!fs.existsSync(discordBase)) return null;
-    for (const entry of fs.readdirSync(discordBase, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !entry.name.startsWith("app-")) continue;
-        for (const exe of DISCORD_EXES) {
-            const full = path.join(discordBase, entry.name, exe);
-            if (fs.existsSync(full)) return full;
+
+    if (IS_WIN) {
+        const localAppData = process.env.LOCALAPPDATA;
+        if (!localAppData) return null;
+        const discordBase = path.join(localAppData, "Discord");
+        if (!fs.existsSync(discordBase)) return null;
+        for (const entry of fs.readdirSync(discordBase, { withFileTypes: true })) {
+            if (!entry.isDirectory() || !entry.name.startsWith("app-")) continue;
+            for (const name of ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"]) {
+                const full = path.join(discordBase, entry.name, name);
+                if (fs.existsSync(full)) return full;
+            }
         }
+        return null;
     }
+
+    if (IS_MAC) {
+        const candidates = [
+            "/Applications/Discord.app/Contents/MacOS/Discord",
+            path.join(os.homedir(), "Applications", "Discord.app", "Contents", "MacOS", "Discord"),
+        ];
+        for (const c of candidates) {
+            if (fs.existsSync(c)) return c;
+        }
+        return null;
+    }
+
+    if (IS_LINUX) {
+        // Try resolving via PATH first
+        try {
+            const which = execSync("which discord 2>/dev/null", { encoding: "utf-8" }).trim();
+            if (which) return which;
+        } catch { /* not in PATH */ }
+
+        const candidates = [
+            "/opt/discord/Discord",
+            "/usr/bin/discord",
+            "/usr/share/discord/Discord",
+            path.join(os.homedir(), ".local", "bin", "discord"),
+            path.join(os.homedir(), "snap", "discord", "current", ".discord"),
+            "/snap/discord/current/usr/share/discord/discord",
+        ];
+        for (const c of candidates) {
+            if (fs.existsSync(c)) return c;
+        }
+        return null;
+    }
+
     return null;
 }
 
@@ -100,16 +140,25 @@ async function pushSettings(client, settings) {
 }
 
 // --- Discord lifecycle ---
+function killDiscordProcesses() {
+    if (IS_WIN) {
+        for (const name of ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"]) {
+            try {
+                execSync(`taskkill /f /im ${name} 2>nul`, { stdio: "ignore" });
+            } catch { /* may not be running */ }
+        }
+    } else {
+        try {
+            execSync("pkill -f 'Discord' 2>/dev/null", { stdio: "ignore" });
+        } catch { /* may not be running */ }
+    }
+}
+
 async function launchDiscord(discordPath, port) {
     const exe = findDiscordPath(discordPath);
     if (!exe) throw new Error("Discord not found. Set the path in Advanced settings.");
 
-    // Try to kill existing Discord instances
-    for (const exe of DISCORD_EXES) {
-        try {
-            execSync(`taskkill /f /im ${exe} 2>nul`, { stdio: "ignore" });
-        } catch { /* may not be running */ }
-    }
+    killDiscordProcesses();
 
     discordProcess = spawn(exe, [`--remote-debugging-port=${port}`], {
         detached: false,
