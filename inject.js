@@ -1,9 +1,8 @@
-// Japanese to Romaji — injected into Discord via CDP
 (function () {
     if (window.__jpRomajiLoaded) return;
     window.__jpRomajiLoaded = true;
 
-    // ===== SETTINGS =====
+    // --- settings ---
     const defaults = {
         annotateKanji: true,
         annotateKana: true,
@@ -24,7 +23,7 @@
         if (changed) scheduleScan();
     };
 
-    // ===== KANA LOGIC =====
+    // --- kana logic ---
     let kanaMap = {};
     let kanaReady = false;
     let kanaCallbacks = [];
@@ -66,7 +65,7 @@
         return result;
     }
 
-    // ===== KANJI LOGIC =====
+    // --- kanji logic ---
     let kanjiDict = {};
     let dictReady = false;
     let dictCallbacks = [];
@@ -115,7 +114,7 @@
         return "";
     }
 
-    // ===== ROMAJI LOGIC =====
+    // --- romaji logic ---
     var japaneseRegex = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
     var kanaRegex = /[\u3040-\u30ff]/;
     var smallKanaRegex = /[\u3041\u3043\u3045\u3047\u3049\u3083\u3085\u3087\u308e\u30a1\u30a3\u30a5\u30a7\u30a9\u30e3\u30e5\u30e7\u30ee]/;
@@ -219,7 +218,7 @@
         return result;
     }
 
-    // ===== CSS =====
+    // --- CSS ---
     function injectStyles() {
         if (document.getElementById("jp-romaji-styles")) return;
         var style = document.createElement("style");
@@ -238,7 +237,7 @@
         document.head.appendChild(style);
     }
 
-    // ===== TOOLTIP =====
+    // --- tooltip ---
     var tooltipEl = null;
 
     function showTooltip(state) {
@@ -277,7 +276,7 @@
         if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
     }
 
-    // ===== DOM SCANNER =====
+    // --- DOM scan ---
     var scanTimer = null;
     var processedElements = new WeakSet();
 
@@ -346,11 +345,31 @@
         processedElements.add(container);
     }
 
-    // ===== OBSERVER =====
+    // --- observer ---
     function startObserver() {
         var target = document.getElementById("app-mount") || document.body;
-        var observer = new MutationObserver(function () {
-            scheduleScan();
+        var observer = new MutationObserver(function (mutations) {
+            var needsRescan = false;
+            for (var m = 0; m < mutations.length; m++) {
+                var mut = mutations[m];
+                if (mut.type === "childList") {
+                    needsRescan = true;
+                    break;
+                }
+                if (mut.type === "characterData") {
+                    var node = mut.target;
+                    if (node.nodeType === 3 && node.parentElement) {
+                        var container = node.parentElement.closest(
+                            '[class*="messageContent"], [class*="markup"], [class*="username"], [class*="name"]'
+                        );
+                        if (container) {
+                            processedElements.delete(container);
+                            needsRescan = true;
+                        }
+                    }
+                }
+            }
+            if (needsRescan) scheduleScan();
         });
         observer.observe(target, {
             childList: true,
@@ -365,7 +384,7 @@
         setInterval(scheduleScan, 3000);
     }
 
-    // ===== TOOLTIP EVENT DELEGATION =====
+    // --- tooltip event delegation ---
     document.addEventListener("mouseover", function (e) {
         if (!settings.showTooltip) return;
         var target = e.target.closest("[data-kanji]");
@@ -390,7 +409,7 @@
         hideTooltip();
     });
 
-    // ===== STARTUP =====
+    // --- startup ---
     function waitForAppMount() {
         if (document.getElementById("app-mount")) {
             injectStyles();

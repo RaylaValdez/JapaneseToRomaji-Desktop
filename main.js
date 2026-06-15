@@ -12,6 +12,7 @@ let mainWindow = null;
 let discordProcess = null;
 let cdpClient = null;
 let scriptIdentifier = null;
+let lastSettings = null;
 
 // --- paths ---
 function findDiscordPath(hint) {
@@ -103,10 +104,12 @@ async function launchDiscord(discordPath, port) {
     const exe = findDiscordPath(discordPath);
     if (!exe) throw new Error("Discord not found. Set the path in Advanced settings.");
 
-    // Try to kill existing Discord
-    try {
-        execSync("taskkill /f /im Discord.exe 2>nul", { stdio: "ignore" });
-    } catch { /* may not be running */ }
+    // Try to kill existing Discord instances
+    for (const exe of DISCORD_EXES) {
+        try {
+            execSync(`taskkill /f /im ${exe} 2>nul`, { stdio: "ignore" });
+        } catch { /* may not be running */ }
+    }
 
     discordProcess = spawn(exe, [`--remote-debugging-port=${port}`], {
         detached: false,
@@ -116,6 +119,8 @@ async function launchDiscord(discordPath, port) {
     discordProcess.on("exit", code => {
         console.log("Discord exited with code", code);
         discordProcess = null;
+        cdpClient = null;
+        scriptIdentifier = null;
         if (mainWindow) mainWindow.webContents.send("disconnected");
     });
 
@@ -127,6 +132,9 @@ async function launchDiscord(discordPath, port) {
             if (findMainTarget(targets)) return;
         } catch { /* not ready yet */ }
     }
+    // Timed out — kill the orphaned Discord process
+    try { discordProcess.kill(); } catch { /* ignore */ }
+    discordProcess = null;
     throw new Error("Discord started but CDP did not become available");
 }
 
@@ -198,6 +206,7 @@ app.whenReady().then(() => {
 
 // --- IPC handlers ---
 ipcMain.on("settings-updated", (_event, settings) => {
+    lastSettings = settings;
     if (cdpClient) {
         pushSettings(cdpClient, settings);
     } else {
@@ -218,19 +227,20 @@ ipcMain.on("reconnect", async () => {
         try { await cdpClient.close(); } catch { /* ignore */ }
         cdpClient = null;
     }
-    const port = 9222;
-    try {
-        const client = await connectToDiscord(port);
-        cdpClient = client;
-        const script = loadInjectScript();
-        await injectScript(client, script);
-        if (mainWindow) {
-            mainWindow.webContents.send("connected");
-            mainWindow.webContents.send("status", "✓ Reconnected");
+    scriptIdentifier = null;
+    if (lastSettings) {
+        try {
+            await setup(lastSettings);
+            if (mainWindow) mainWindow.webContents.send("status", "✓ Reconnected");
+        } catch (err) {
+            if (mainWindow) {
+                mainWindow.webContents.send("status", `Reconnect failed: ${err.message}`);
+                mainWindow.webContents.send("disconnected");
+            }
         }
-    } catch (err) {
+    } else {
         if (mainWindow) {
-            mainWindow.webContents.send("status", `Reconnect failed: ${err.message}`);
+            mainWindow.webContents.send("status", "No settings available — adjust a setting first");
             mainWindow.webContents.send("disconnected");
         }
     }
