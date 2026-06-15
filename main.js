@@ -18,8 +18,17 @@ let scriptIdentifier = null;
 let lastSettings = null;
 
 // --- paths ---
+function isExecutable(filePath) {
+    try {
+        fs.accessSync(filePath, fs.constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function findDiscordPath(hint) {
-    if (hint && fs.existsSync(hint)) return hint;
+    if (hint && isExecutable(hint)) return hint;
 
     if (IS_WIN) {
         const localAppData = process.env.LOCALAPPDATA;
@@ -30,7 +39,7 @@ function findDiscordPath(hint) {
             if (!entry.isDirectory() || !entry.name.startsWith("app-")) continue;
             for (const name of ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"]) {
                 const full = path.join(discordBase, entry.name, name);
-                if (fs.existsSync(full)) return full;
+                if (isExecutable(full)) return full;
             }
         }
         return null;
@@ -42,7 +51,7 @@ function findDiscordPath(hint) {
             path.join(os.homedir(), "Applications", "Discord.app", "Contents", "MacOS", "Discord"),
         ];
         for (const c of candidates) {
-            if (fs.existsSync(c)) return c;
+            if (isExecutable(c)) return c;
         }
         return null;
     }
@@ -51,20 +60,29 @@ function findDiscordPath(hint) {
         // Try resolving via PATH first
         try {
             const which = execSync("which discord 2>/dev/null", { encoding: "utf-8" }).trim();
-            if (which) return which;
+            if (which && isExecutable(which)) return which;
         } catch { /* not in PATH */ }
 
-        const candidates = [
-            "/opt/discord/Discord",
-            "/usr/bin/discord",
-            "/usr/share/discord/Discord",
-            path.join(os.homedir(), ".local", "bin", "discord"),
-            path.join(os.homedir(), "snap", "discord", "current", ".discord"),
-            "/snap/discord/current/usr/share/discord/discord",
+        // Check common installation paths with both capitalisation variants
+        const names = ["discord", "Discord"];
+        const dirs = [
+            "/opt/discord",
+            "/usr/bin",
+            "/usr/share/discord",
+            path.join(os.homedir(), ".local", "bin"),
+            "/snap/discord/current/usr/share/discord",
         ];
-        for (const c of candidates) {
-            if (fs.existsSync(c)) return c;
+        for (const dir of dirs) {
+            for (const name of names) {
+                const full = path.join(dir, name);
+                if (isExecutable(full)) return full;
+            }
         }
+
+        // Check snap app entry point
+        const snapEntry = path.join(os.homedir(), "snap", "discord", "current", ".discord");
+        if (isExecutable(snapEntry)) return snapEntry;
+
         return null;
     }
 
