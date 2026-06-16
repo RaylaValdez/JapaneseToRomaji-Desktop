@@ -5,11 +5,13 @@
     "author": "RaylaValdez",
     "main": "main.js",
     "scripts": {
-        "start": "electron .",
+        "postinstall": "node scripts/fetch-dicts.js",
+        "start": "electron . --no-sandbox",
         "build": "electron-builder build",
         "build:win": "electron-builder build --win portable",
         "build:mac": "electron-builder build --mac",
-        "build:linux": "electron-builder build --linux"
+        "build:linux": "electron-builder build --linux",
+        "fetch-dicts": "node scripts/fetch-dicts.js"
     },
     "build": {
         "appId": "com.jp-romaji.injector",
@@ -21,6 +23,8 @@
             "main.js",
             "inject.js",
             "renderer/**/*",
+            "kanji.json",
+            "kana.json",
             "package.json"
         ],
         "win": {
@@ -36,13 +40,13 @@
         "linux": {
             "target": "AppImage"
         },
-        "asar": true
+        "asar": false
     },
     "dependencies": {
         "chrome-remote-interface": "0.34.0"
     },
     "devDependencies": {
-        "electron": "42.2.0",
+        "electron": "^33.4.0",
         "electron-builder": "26.8.1"
     }
 }

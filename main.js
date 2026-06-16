@@ -124,7 +124,21 @@ async function connectToDiscord(port) {
 function loadInjectScript() {
     const injectPath = path.join(__dirname, "inject.js");
     if (!fs.existsSync(injectPath)) throw new Error("inject.js not found");
-    return fs.readFileSync(injectPath, "utf-8");
+    let script = fs.readFileSync(injectPath, "utf-8");
+
+    // Embed dictionary data if available locally (bypasses Discord CSP)
+    const kanjiPath = path.join(__dirname, "kanji.json");
+    const kanaPath = path.join(__dirname, "kana.json");
+    if (fs.existsSync(kanjiPath) && fs.existsSync(kanaPath)) {
+        const kanjiData = fs.readFileSync(kanjiPath, "utf-8");
+        const kanaData = fs.readFileSync(kanaPath, "utf-8");
+        script = "window.__jpRomajiEmbedded={kanji:" + kanjiData + ",kana:" + kanaData + "};\n" + script;
+        console.log("[JpRomaji] Embedded kanji/kana data from local files");
+    } else {
+        console.log("[JpRomaji] Local dict files not found, will fetch from GitHub");
+    }
+
+    return script;
 }
 
 async function injectScript(client, script) {

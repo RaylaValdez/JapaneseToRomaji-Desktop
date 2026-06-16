@@ -1,8 +1,6 @@
 const DEFAULTS = {
     discordPath: "",
     debugPort: 9222,
-    dictUrl: "https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kanji.json",
-    kanaUrl: "https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kana.json",
     annotateKanji: true,
     annotateKana: true,
     showTooltip: true,
@@ -87,22 +85,6 @@ function setupUI() {
         if (el) {
             el.value = "";
             settings.discordPath = "";
-            pushSettings();
-        }
-    });
-    document.getElementById("reset-dictUrl")?.addEventListener("click", () => {
-        const el = document.getElementById("setting-dictUrl");
-        if (el) {
-            el.value = DEFAULTS.dictUrl;
-            settings.dictUrl = DEFAULTS.dictUrl;
-            pushSettings();
-        }
-    });
-    document.getElementById("reset-kanaUrl")?.addEventListener("click", () => {
-        const el = document.getElementById("setting-kanaUrl");
-        if (el) {
-            el.value = DEFAULTS.kanaUrl;
-            settings.kanaUrl = DEFAULTS.kanaUrl;
             pushSettings();
         }
     });

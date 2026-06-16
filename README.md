@@ -4,17 +4,16 @@ A desktop tool that injects romaji reading annotations into Discord messages con
 
 ## Features
 
-- **Ruby annotations** — Japanese kanji and kana in chat messages are wrapped with `<ruby>` tags showing their romaji readings
-- **Hover tooltips** — Hover over any kanji to see its kun'yomi / on'yomi readings and English meanings
-- **Configurable** — Toggle annotations for kanji, kana, and usernames independently; choose reading preference; adjust font sizes
-- **Live updates** — Automatically annotates new messages as they appear; reacts to message edits
+- **Ruby annotations** - Japanese kanji and kana in chat messages are wrapped with `<ruby>` tags showing their romaji readings
+- **Hover tooltips** - Hover over any kanji to see its kun'yomi / on'yomi readings and English meanings
+- **Configurable** - Toggle annotations for kanji, kana, and usernames independently; choose reading preference; adjust font sizes
+- **Live updates** - Automatically annotates new messages as they appear; reacts to message edits
 
 ## How it works
 
-The app launches Discord (or connects to an already-running instance) with `--remote-debugging-port` enabled. It then uses the Chrome DevTools Protocol (CDP) to inject a script into Discord's renderer process. The script fetches a kanji dictionary and kana-to-romaji mapping, monitors the DOM for Japanese text, and renders reading annotations inline.
+The app launches Discord (or connects to an already-running instance) with `--remote-debugging-port` enabled. It then uses the Chrome DevTools Protocol (CDP) to inject a script into Discord's renderer process. The script monitors the DOM for Japanese text and renders reading annotations inline.
 
-Kanji dictionary and kana map are loaded from:
-- https://github.com/RaylaValdez/jp-kanji
+Kanji dictionary and kana map data is loaded from [jp-kanji](https://github.com/RaylaValdez/jp-kanji). When building from source, the JSON files are downloaded automatically during `npm install` via a `postinstall` script. In pre-built releases, they are bundled directly into the executable.
 
 ## Download
 
@@ -24,7 +23,7 @@ Pre-built portable executables are available on the [Releases](https://github.co
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or later)
+- [Node.js](https://nodejs.org/) (v18–v22)
 - npm (included with Node.js)
 
 ### Steps
@@ -34,7 +33,7 @@ Pre-built portable executables are available on the [Releases](https://github.co
 git clone https://github.com/RaylaValdez/JapaneseToRomaji-Desktop.git
 cd JapaneseToRomaji-Desktop
 
-# Install dependencies
+# Install dependencies (also downloads kanji.json and kana.json automatically)
 npm install
 
 # Run (development)
@@ -42,15 +41,24 @@ npm start
 
 # Package as portable executable
 npm run build
+
+# Or package for a specific platform
+npm run build:linux   # AppImage
+npm run build:win     # Portable .exe
+npm run build:mac     # .dmg
 ```
 
 The built executable will be in the `dist/` directory.
+
+**Linux AppImage users:** Run with `--no-sandbox` if you encounter sandboxing errors, or use the wrapper script:
+```bash
+./scripts/launch-appimage.sh
 
 ## Usage
 
 1. Close Discord completely (the app will relaunch it automatically)
 2. Run `JapaneseToRomaji-Desktop` (or `npm start` if running from source)
-3. A settings window will appear — Discord will launch alongside it
+3. A settings window will appear - Discord will launch alongside it
 4. Once the status shows **Connected**, Japanese text in Discord will have reading annotations
 
 ### Settings
@@ -67,15 +75,14 @@ The built executable will be in the `dist/` directory.
 
 ### Advanced
 
-- **Discord path** — Manually specify the Discord executable if auto-detection fails
-- **Debug port** — CDP port for remote debugging (default: 9222)
-- **Kanji / Kana URLs** — Custom dictionary sources
+- **Discord path** - Manually specify the Discord executable if auto-detection fails
+- **Debug port** - CDP port for remote debugging (default: 9222)
 
 ## Acknowledgements
 
-- [chrome-remote-interface](https://github.com/cyrus-and/chrome-remote-interface) — Node.js CDP client
-- [Electron](https://www.electronjs.org/) — Desktop application framework
-- [jp-kanji](https://github.com/RaylaValdez/jp-kanji) — Kanji and kana dictionary data
+- [chrome-remote-interface](https://github.com/cyrus-and/chrome-remote-interface) - Node.js CDP client
+- [Electron](https://www.electronjs.org/) - Desktop application framework
+- [jp-kanji](https://github.com/RaylaValdez/jp-kanji) - Kanji and kana dictionary data
 
 ## License
 

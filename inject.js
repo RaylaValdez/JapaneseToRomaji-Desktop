@@ -12,8 +12,6 @@
         readingPreference: "kun",
         rubyFontSize: 75,
         tooltipFontSize: 85,
-        dictUrl: "https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kanji.json",
-        kanaUrl: "https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kana.json",
     };
 
     let settings = { ...defaults };
@@ -286,6 +284,18 @@
         scanTimer = setTimeout(scanDOM, 400);
     }
 
+    function isInTextArea(el) {
+        return !!el.closest('[class*="channelTextArea"], [class*="slateContainer"], [class*="slateTextArea"]');
+    }
+
+    function isInSidebar(el) {
+        return !!el.closest('[class*="membersWrap"], [class*="membersGroup"], [class*="sidebar"]');
+    }
+
+    function isInMessage(el) {
+        return !!el.closest('[class*="message"]');
+    }
+
     function scanDOM() {
         scanTimer = null;
         var appMount = document.getElementById("app-mount");
@@ -296,18 +306,21 @@
         var rubyFontSize = (settings.rubyFontSize / 100) + "em";
         appMount.style.setProperty("--jp-ruby-font-size", rubyFontSize);
 
-        // Find message content elements
-        var messageParts = appMount.querySelectorAll('[class*="messageContent"], [class*="markup"]');
+        // Annotate message content
+        var messageParts = appMount.querySelectorAll('[class*="messageContent"]');
         messageParts.forEach(function (el) {
             if (processedElements.has(el)) return;
+            if (isInTextArea(el)) return;
             processElement(el);
         });
 
-        // Annotate usernames
+        // Annotate usernames (chat region only)
         if (settings.annotateUsernames) {
-            var usernameEls = appMount.querySelectorAll('[class*="username"], [class*="name"]');
+            var usernameEls = appMount.querySelectorAll('[class*="username"]');
             usernameEls.forEach(function (el) {
                 if (processedElements.has(el)) return;
+                if (isInTextArea(el)) return;
+                if (isInSidebar(el)) return;
                 if (!containsJapanese(el.textContent || "")) return;
                 processElement(el);
             });
@@ -360,8 +373,10 @@
                 if (mut.type === "characterData") {
                     var node = mut.target;
                     if (node.nodeType === 3 && node.parentElement) {
+                        if (isInTextArea(node.parentElement)) continue;
+                        if (isInSidebar(node.parentElement)) continue;
                         var container = node.parentElement.closest(
-                            '[class*="messageContent"], [class*="markup"], [class*="username"], [class*="name"]'
+                            '[class*="messageContent"], [class*="username"]'
                         );
                         if (container) {
                             processedElements.delete(container);
@@ -414,10 +429,22 @@
     function waitForAppMount() {
         if (document.getElementById("app-mount")) {
             injectStyles();
-            loadDict(settings.dictUrl);
-            loadKanaMap(settings.kanaUrl);
+
+            // Use embedded data if provided (bypasses CSP), otherwise fetch
+            if (window.__jpRomajiEmbedded) {
+                kanjiDict = window.__jpRomajiEmbedded.kanji;
+                kanaMap = window.__jpRomajiEmbedded.kana;
+                dictReady = true;
+                kanaReady = true;
+                dictCallbacks.splice(0).forEach(function (cb) { cb(); });
+                kanaCallbacks.splice(0).forEach(function (cb) { cb(); });
+            } else {
+                loadDict("https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kanji.json");
+                loadKanaMap("https://raw.githubusercontent.com/RaylaValdez/jp-kanji/refs/heads/main/kana.json");
+            }
 
             var bothReady = function () {
+                processedElements = new WeakSet();
                 scheduleScan();
             };
             var ready = function () {
@@ -425,6 +452,14 @@
             };
             onReady(ready);
             onKanaReady(ready);
+
+            // Fallback: scan after 10s even if dicts never load (e.g. CSP blocking fetch)
+            setTimeout(function () {
+                if (!dictReady || !kanaReady) {
+                    processedElements = new WeakSet();
+                    scheduleScan();
+                }
+            }, 10000);
 
             startObserver();
         } else {
