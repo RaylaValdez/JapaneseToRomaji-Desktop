@@ -53,7 +53,6 @@ The built executable will be in the `dist/` directory.
 **Linux AppImage users:** Run with `--no-sandbox` if you encounter sandboxing errors, or use the wrapper script:
 ```bash
 ./scripts/launch-appimage.sh
-```
 
 ## Usage
 
