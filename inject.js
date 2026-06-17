@@ -1,3 +1,9 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Japanese to Romaji — injected into Discord via CDP
 (function () {
     if (window.__jpRomajiLoaded) return;
@@ -14,7 +20,7 @@
         tooltipFontSize: 85,
     };
 
-    let settings = { ...defaults };
+    const settings = { ...defaults };
 
     window.__jpRomajiUpdateSettings = function (s) {
         const changed = JSON.stringify(settings) !== JSON.stringify({ ...settings, ...s });
@@ -25,7 +31,7 @@
     // ===== KANA LOGIC =====
     let kanaMap = {};
     let kanaReady = false;
-    let kanaCallbacks = [];
+    const kanaCallbacks = [];
 
     function onKanaReady(cb) {
         if (kanaReady) { cb(); return; }
@@ -67,7 +73,7 @@
     // ===== KANJI LOGIC =====
     let kanjiDict = {};
     let dictReady = false;
-    let dictCallbacks = [];
+    const dictCallbacks = [];
     var readingCache = new Map();
 
     function onReady(cb) {
@@ -88,25 +94,62 @@
         }
     }
 
+    const nameOverrides = {
+        "天道 剣": "Tendou Tsurugi",
+    };
+
+    function lookupNameOverride(text, pos) {
+        var remaining = text.slice(pos);
+        for (var key in nameOverrides) {
+            if (nameOverrides.hasOwnProperty(key) && remaining.startsWith(key)) {
+                return { name: key, reading: nameOverrides[key] };
+            }
+        }
+        return null;
+    }
+
+    function stripOkurigana(reading) {
+        var dot = reading.lastIndexOf(".");
+        return dot >= 0 ? reading.slice(0, dot) : reading;
+    }
+
     function lookupKanji(char) {
         var entry = kanjiDict[char];
         if (!entry) return undefined;
-        return { on: entry.o, kun: entry.k, meanings: entry.m };
+        return { on: entry.o || [], kun: entry.k || [], meanings: entry.m || [] };
     }
 
-    function getKanjiReading(char, preference) {
+    function getKanjiReading(char, preference, okurigana) {
         if (!dictReady) return "";
         if (!preference) preference = "kun";
-        var key = char + preference;
+        var key = char + preference + (okurigana || "");
         var cached = readingCache.get(key);
         if (cached !== undefined) return cached;
-        var info = kanjiDict[char];
-        if (!info) { readingCache.set(key, ""); return ""; }
+        var raw = kanjiDict[char];
+        if (!raw) { readingCache.set(key, ""); return ""; }
+        var info = { o: raw.o || [], k: raw.k || [], m: raw.m || [] };
         if (preference === "on") {
             if (info.o.length > 0) { var r = toRomaji(info.o[0]); readingCache.set(key, r); return r; }
-            if (info.k.length > 0) { var r = toRomaji(info.k[0]); readingCache.set(key, r); return r; }
+            if (info.k.length > 0) { var stem = stripOkurigana(info.k[0]); var r = toRomaji(stem); readingCache.set(key, r); return r; }
         } else {
-            if (info.k.length > 0) { var r = toRomaji(info.k[0]); readingCache.set(key, r); return r; }
+            if (info.k.length > 0) {
+                if (okurigana) {
+                    for (var ri = 0; ri < info.k.length; ri++) {
+                        var rv = info.k[ri];
+                        var dot = rv.lastIndexOf(".");
+                        if (dot >= 0 && rv.slice(dot + 1) === okurigana) {
+                            var stem = rv.slice(0, dot);
+                            var reading = toRomaji(stem);
+                            readingCache.set(key, reading);
+                            return reading;
+                        }
+                    }
+                }
+                var stem = stripOkurigana(info.k[0]);
+                var r = toRomaji(stem);
+                readingCache.set(key, r);
+                return r;
+            }
             if (info.o.length > 0) { var r = toRomaji(info.o[0]); readingCache.set(key, r); return r; }
         }
         readingCache.set(key, "");
@@ -116,7 +159,10 @@
     // ===== ROMAJI LOGIC =====
     var japaneseRegex = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
     var kanaRegex = /[\u3040-\u30ff]/;
+    var hiraganaRegex = /[\u3040-\u309f]/;
     var smallKanaRegex = /[\u3041\u3043\u3045\u3047\u3049\u3083\u3085\u3087\u308e\u30a1\u30a3\u30a5\u30a7\u30a9\u30e3\u30e5\u30e7\u30ee]/;
+
+    var forceOnKanji = new Set(["\u50d5"]);
 
     var wordOverrides = {
         "\u3053\u3093\u306b\u3061\u306f": "konnichiwa",
@@ -153,12 +199,24 @@
 
     function renderRubyText(text) {
         if (wordOverrides[text]) {
+            if (!settings.annotateKana && !settings.annotateKanji) return escapeHtml(text);
             return "<ruby>" + text + "<rt>" + wordOverrides[text] + "</rt></ruby>";
         }
         var result = "", i = 0;
         while (i < text.length) {
             var char = text[i];
             if (japaneseRegex.test(char)) {
+                var nameMatch = lookupNameOverride(text, i);
+                if (nameMatch) {
+                    if (!settings.annotateKana && !settings.annotateKanji) {
+                        result += escapeHtml(nameMatch.name);
+                    } else {
+                        result += "<ruby>" + escapeHtml(nameMatch.name) + "<rt>" + nameMatch.reading + "</rt></ruby>";
+                    }
+                    i += nameMatch.name.length;
+                    continue;
+                }
+
                 var jpStart = i;
                 while (i < text.length && japaneseRegex.test(text[i])) {
                     if (i + 1 < text.length && isSmallKana(text[i + 1])) i += 2;
@@ -167,7 +225,11 @@
                 var jpBlock = text.slice(jpStart, i);
                 var isLast = i >= text.length || !japaneseRegex.test(text[i]);
                 if (wordOverrides[jpBlock]) {
-                    result += "<ruby>" + jpBlock + "<rt>" + wordOverrides[jpBlock] + "</rt></ruby>";
+                    if (!settings.annotateKana && !settings.annotateKanji) {
+                        result += escapeHtml(jpBlock);
+                    } else {
+                        result += "<ruby>" + jpBlock + "<rt>" + wordOverrides[jpBlock] + "</rt></ruby>";
+                    }
                     continue;
                 }
                 for (var j = 0; j < jpBlock.length; j++) {
@@ -196,7 +258,19 @@
                         }
                     } else {
                         if (settings.annotateKanji) {
-                            var reading = getKanjiReading(c, settings.readingPreference);
+                            var okurigana = "";
+                            var k = j + 1;
+                            while (k < jpBlock.length && hiraganaRegex.test(jpBlock[k])) {
+                                okurigana += jpBlock[k];
+                                k++;
+                            }
+                            var nextIsKana = !!okurigana;
+                            var nextNext = okurigana ? okurigana[0] : (jpBlock[j + 1] || "");
+                            var nextIsKanji = nextNext && japaneseRegex.test(nextNext) && !kanaRegex.test(nextNext);
+                            var pref = nextIsKana ? "kun" : nextIsKanji ? "on" : settings.readingPreference;
+                            if (c === "\u6b73" && /[0-9]/.test(text.slice(jpStart + j - 1, jpStart + j) || "")) pref = "on";
+                            if (forceOnKanji.has(c)) pref = "on";
+                            var reading = getKanjiReading(c, pref, okurigana || undefined);
                             if (reading) {
                                 result += "<ruby data-kanji=\"" + c + "\">" + c + "<rt>" + reading + "</rt></ruby>";
                             } else {
@@ -223,13 +297,14 @@
         var style = document.createElement("style");
         style.id = "jp-romaji-styles";
         style.textContent = [
-            "[data-jp-ruby] ruby { display: inline-flex; flex-direction: column; align-items: center; vertical-align: top; line-height: 1.3; }",
+            "[data-jp-ruby] ruby, .jp-kanji-tooltip ruby { display: inline-flex; flex-direction: column; align-items: center; vertical-align: top; line-height: 1.3; }",
             "[data-jp-ruby] rt { font-size: var(--jp-ruby-font-size, 0.75em); line-height: 1.1; opacity: 0.65; display: block; text-align: center; letter-spacing: 0; }",
+            ".jp-kanji-tooltip rt { opacity: 1; font-size: inherit; line-height: 1.1; display: block; text-align: center; letter-spacing: 0; }",
             "[data-jp-ruby] [data-kanji] { cursor: help; }",
             ".jp-kanji-tooltip { background: var(--background-floating, #111214); border: 1px solid var(--background-accent, #2b2d31); border-radius: 8px; padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); line-height: 1.5; min-width: 140px; color: var(--text-normal, #dbdee1); }",
-            ".jp-kanji-tooltip ruby { display: inline-flex; flex-direction: column; align-items: center; vertical-align: top; line-height: 1.3; }",
-            ".jp-kanji-tooltip rt { opacity: 1; font-size: inherit; line-height: 1.1; display: block; text-align: center; letter-spacing: 0; }",
             ".jp-kanji-tooltip-char { font-size: 1.8em; margin-bottom: 4px; text-align: center; }",
+            ".jp-kanji-link { color: inherit; text-decoration: none; }",
+            ".jp-kanji-link:hover { text-decoration: underline; }",
             ".jp-kanji-tooltip-row { display: flex; gap: 6px; }",
             ".jp-kanji-tooltip-label { opacity: 0.5; min-width: 1.5em; }",
         ].join("\n");
@@ -238,23 +313,49 @@
 
     // ===== TOOLTIP =====
     var tooltipEl = null;
+    var hideTimeout = null;
+
+    function scheduleHide() {
+        if (hideTimeout) clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(function () {
+            hideTooltip();
+            hideTimeout = null;
+        }, 500);
+    }
+
+    function cancelHide() {
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+        }
+    }
 
     function showTooltip(state) {
         if (!tooltipEl || !document.body.contains(tooltipEl)) {
             tooltipEl = document.createElement("div");
             tooltipEl.className = "jp-kanji-tooltip";
+            tooltipEl.addEventListener("mouseenter", cancelHide);
+            tooltipEl.addEventListener("mouseleave", scheduleHide);
             document.body.appendChild(tooltipEl);
         }
-        var info = state.info;
-        var html = "<div class=\"jp-kanji-tooltip-char\">" + escapeHtml(state.kanji) + "</div>";
+        var { info } = state;
+        var jishoUrl = "https://jisho.org/search/" + encodeURIComponent(state.kanji) + "%20%23kanji";
+        var html = "<div class=\"jp-kanji-tooltip-char\"><a href=\"" + jishoUrl + "\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"jp-kanji-link\">" + escapeHtml(state.kanji) + "</a></div>";
         if (info.kun.length > 0) {
             html += "<div class=\"jp-kanji-tooltip-row\"><span class=\"jp-kanji-tooltip-label\">\u8a13</span><span>";
-            html += info.kun.map(function (r) { return "<ruby>" + r + "<rt>" + toRomaji(r) + "</rt></ruby>"; }).join("\u3001");
+            html += info.kun.map(function (r) {
+                var stem = stripOkurigana(r);
+                var romaji = toRomaji(stem);
+                return "<ruby>" + stem + "<rt>" + romaji + "</rt></ruby>";
+            }).join("\u3001");
             html += "</span></div>";
         }
         if (info.on.length > 0) {
             html += "<div class=\"jp-kanji-tooltip-row\"><span class=\"jp-kanji-tooltip-label\">\u97f3</span><span>";
-            html += info.on.map(function (r) { return "<ruby>" + r + "<rt>" + toRomaji(r) + "</rt></ruby>"; }).join("\u3001");
+            html += info.on.map(function (r) {
+                var romaji = toRomaji(r);
+                return "<ruby>" + r + "<rt>" + romaji + "</rt></ruby>";
+            }).join("\u3001");
             html += "</span></div>";
         }
         html += "<div class=\"jp-kanji-tooltip-row\" style=\"opacity:0.7\"><span>" + info.meanings.join(", ") + "</span></div>";
@@ -262,16 +363,21 @@
         tooltipEl.style.cssText = [
             "position: fixed",
             "left: " + state.x + "px",
-            "top: " + (state.y - 8) + "px",
+            "top: " + state.y + "px",
             "transform: translateY(-100%)",
             "z-index: 10000",
-            "pointer-events: none",
+            "pointer-events: auto",
             "font-size: " + (settings.tooltipFontSize / 100) + "em",
         ].join("; ");
         tooltipEl.innerHTML = html;
+        cancelHide();
     }
 
     function hideTooltip() {
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+        }
         if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
     }
 
@@ -306,7 +412,6 @@
         var rubyFontSize = (settings.rubyFontSize / 100) + "em";
         appMount.style.setProperty("--jp-ruby-font-size", rubyFontSize);
 
-        // Annotate message content
         var messageParts = appMount.querySelectorAll('[class*="messageContent"]');
         messageParts.forEach(function (el) {
             if (processedElements.has(el)) return;
@@ -314,7 +419,6 @@
             processElement(el);
         });
 
-        // Annotate usernames (chat region only)
         if (settings.annotateUsernames) {
             var usernameEls = appMount.querySelectorAll('[class*="username"]');
             usernameEls.forEach(function (el) {
@@ -328,6 +432,14 @@
     }
 
     function processElement(container) {
+        var existing = container.querySelectorAll("[data-jp-ruby]");
+        for (var si = 0; si < existing.length; si++) {
+            var span = existing[si];
+            var original = span.getAttribute("data-original-text") || span.textContent || "";
+            var text = document.createTextNode(original);
+            span.parentNode.replaceChild(text, span);
+        }
+
         var textNodes = [];
         var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
             acceptNode: function (node) {
@@ -352,6 +464,7 @@
 
             var span = document.createElement("span");
             span.setAttribute("data-jp-ruby", "");
+            span.setAttribute("data-original-text", textNode.textContent || "");
             span.innerHTML = html;
             textNode.parentNode.replaceChild(span, textNode);
         });
@@ -393,10 +506,8 @@
             characterData: true,
         });
 
-        // Initial scan
         scheduleScan();
 
-        // Also re-scan periodically (catch anything the observer misses)
         setInterval(scheduleScan, 3000);
     }
 
@@ -409,6 +520,7 @@
         if (!char) return;
         var info = lookupKanji(char);
         if (info) {
+            cancelHide();
             showTooltip({
                 x: Math.min(e.clientX, window.innerWidth - 160),
                 y: Math.max(40, e.clientY),
@@ -420,9 +532,11 @@
 
     document.addEventListener("mouseout", function (e) {
         if (!settings.showTooltip) return;
+        var target = e.target && e.target.closest ? e.target.closest("[data-kanji]") : null;
+        if (!target) return;
         var related = e.relatedTarget;
         if (related && related.closest && related.closest("[data-kanji]")) return;
-        hideTooltip();
+        scheduleHide();
     });
 
     // ===== STARTUP =====
@@ -430,7 +544,6 @@
         if (document.getElementById("app-mount")) {
             injectStyles();
 
-            // Use embedded data if provided (bypasses CSP), otherwise fetch
             if (window.__jpRomajiEmbedded) {
                 kanjiDict = window.__jpRomajiEmbedded.kanji;
                 kanaMap = window.__jpRomajiEmbedded.kana;
@@ -453,7 +566,6 @@
             onReady(ready);
             onKanaReady(ready);
 
-            // Fallback: scan after 10s even if dicts never load (e.g. CSP blocking fetch)
             setTimeout(function () {
                 if (!dictReady || !kanaReady) {
                     processedElements = new WeakSet();
