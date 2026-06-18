@@ -161,20 +161,179 @@
     var kanaRegex = /[\u3040-\u30ff]/;
     var hiraganaRegex = /[\u3040-\u309f]/;
     var smallKanaRegex = /[\u3041\u3043\u3045\u3047\u3049\u3083\u3085\u3087\u308e\u30a1\u30a3\u30a5\u30a7\u30a9\u30e3\u30e5\u30e7\u30ee]/;
+    var kanjiRegex = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 
-    var forceOnKanji = new Set(["\u50d5"]);
+    var particles = new Set(["\u306f", "\u304c", "\u3092", "\u306b", "\u3067", "\u3078", "\u306e", "\u3082", "\u3068", "\u3084", "\u304b", "\u306d", "\u3088", "\u306a", "\u305e", "\u305c", "\u308f", "\u3055"]);
 
-    var wordOverrides = {
-        "\u3053\u3093\u306b\u3061\u306f": "konnichiwa",
-        "\u3053\u3093\u3070\u3093\u306f": "konbanwa",
-        "\u3042\u308a\u304c\u3068\u3046": "arigatou",
-        "\u304a\u306f\u3088\u3046": "ohayou",
-        "\u304a\u3084\u3059\u307f": "oyasumi",
-        "\u3044\u305f\u3060\u304d\u307e\u3059": "itadakimasu",
-        "\u304a\u9858\u3044\u3057\u307e\u3059": "onegaishimasu",
-        "\u3059\u307f\u307e\u305b\u3093": "sumimasen",
+    var forceOnKanji = new Set(["\u50d5", "\u56f3", "\u6c17", "\u672c"]);
+
+    var suffixKanji = new Set(["\u541b", "\u69d8", "\u6bbf", "\u6c0f"]);
+
+    var compoundReadings = {
+        "\u9811\u5f35": "\u3070",
+        "\u624b\u4f1d": "\u3064\u3060",
+        "\u53cb\u9054": "\u3060\u3061",
     };
+
     var charOverrides = { "\u3092": "o" };
+
+    // Compound word map (~150+ entries)
+    var compoundsMap = {
+        "\u4eca\u65e5": "kyou",
+        "\u6628\u65e5": "kinou",
+        "\u660e\u65e5": "ashita",
+        "\u4e00\u6628\u65e5": "ototoi",
+        "\u660e\u5f8c\u65e5": "asatte",
+        "\u5927\u4eba": "otona",
+        "\u53cb\u9054": "tomodachi",
+        "\u604b\u4eba": "koibito",
+        "\u5f7c\u6c0f": "kareshi",
+        "\u5f7c\u5973": "kanojo",
+        "\u4e00\u4eba": "hitori",
+        "\u4e8c\u4eba": "futari",
+        "\u81ea\u5206": "jibun",
+        "\u4e00\u5fdc": "ichio",
+        "\u6ca2\u5c71": "takusan",
+        "\u6ca2\u5c71\u306e": "takusanno",
+        "\u4eca\u5e74": "kotoshi",
+        "\u53bb\u5e74": "kyonen",
+        "\u6765\u5e74": "rainen",
+        "\u6765\u9031": "raishuu",
+        "\u5148\u9031": "senshuu",
+        "\u4eca\u9031": "konshuu",
+        "\u60c5\u5831": "jouhou",
+        "\u96fb\u8a71": "denwa",
+        "\u4f4f\u6240": "juusho",
+        "\u540d\u524d": "namae",
+        "\u8a95\u751f\u65e5": "tanjoubi",
+        "\u5b66\u6821": "gakkou",
+        "\u5148\u751f": "sensei",
+        "\u5b66\u751f": "gakusei",
+        "\u52c9\u5f37": "benkyou",
+        "\u52c9\u5f37\u3057\u3066": "benkyoushite",
+        "\u5bb6\u65cf": "kazoku",
+        "\u5144\u5f1f": "kyoudai",
+        "\u4f1a\u793e": "kaisha",
+        "\u4ed5\u4e8b": "shigoto",
+        "\u8da3\u5473": "shumi",
+        "\u7406\u7531": "riyuu",
+        "\u65b9\u6cd5": "houhou",
+        "\u5929\u6c17": "tenki",
+        "\u6c17\u6301\u3061": "kimochi",
+        "\u6c17\u5206": "kibun",
+        "\u6c17\u6e29": "kion",
+        "\u6642\u9593": "jikan",
+        "\u7d04\u675f": "yakusoku",
+        "\u7d04\u675f\u3057\u3066": "yakusokushite",
+        "\u8fd4\u4e8b": "henji",
+        "\u8fd4\u4e8b\u3057\u3066": "henjishite",
+        "\u9023\u7d61": "renraku",
+        "\u9023\u7d61\u3057\u3066": "renrakushite",
+        "\u5927\u4e08\u592b": "daijoubu",
+        "\u5927\u5909": "taihen",
+        "\u5927\u5207": "taisetsu",
+        "\u5927\u597d\u304d": "daisuki",
+        "\u5927\u5acc\u3044": "daikirai",
+        "\u4e00\u756a": "ichiban",
+        "\u4e00\u7dd2": "issho",
+        "\u8272\u3005": "iroiro",
+        "\u5931\u793c": "shitsurei",
+        "\u5931\u793c\u3057\u307e\u3059": "shitsureishimasu",
+        "\u672c\u5f53": "hontou",
+        "\u672c\u5f53\u306b": "hontouni",
+        "\u6bce\u65e5": "mainichi",
+        "\u6bce\u9031": "maishuu",
+        "\u4e00\u3064": "hitotsu",
+        "\u4e8c\u3064": "futatsu",
+        "\u4e09\u3064": "mittsu",
+        "\u56db\u3064": "yottsu",
+        "\u4e94\u3064": "itsutsu",
+        "\u516d\u3064": "muttsu",
+        "\u4e03\u3064": "nanatsu",
+        "\u516b\u3064": "yattsu",
+        "\u4e5d\u3064": "kokonotsu",
+        "\u5341": "juu",
+        "\u4f55\u4eba": "nannin",
+        "\u5e7e\u3064": "ikutsu",
+        "\u5e7e\u65e5": "ikunichi",
+        "\u4f55\u6642": "nanji",
+        "\u4f55\u6545": "naze",
+        "\u4f55\u66dc\u65e5": "nanyoubi",
+        "\u4f55\u65b9": "donata",
+        "\u4f55\u51e6": "doko",
+        "\u4f55\u308c": "dore",
+        "\u4f55\u306e": "dono",
+        "\u4f55\u304b": "nanika",
+        "\u4f55\u3082": "nanimo",
+        "\u8ab0\u304b": "dareka",
+        "\u8ab0\u3082": "daremo",
+        "\u5e7e\u4f55": "kura",
+        "\u99c5\u524d": "ekimae",
+        "\u75c5\u9662": "byouin",
+        "\u56f3\u66f8\u9928": "toshokan",
+        "\u535a\u7269\u9928": "hakubutsukan",
+        "\u7f8e\u8853\u9928": "bijutsukan",
+        "\u6559\u5ba4": "kyoushitsu",
+        "\u4f53\u80b2\u9928": "taiikukan",
+        "\u9280\u884c": "ginkou",
+        "\u90f5\u4fbf\u5c40": "yuubinkyoku",
+        "\u4ea4\u756a": "kouban",
+        "\u795e\u793e": "jinja",
+        "\u6559\u4f1a": "kyoukai",
+        "\u5e97\u54e1": "tenin",
+        "\u793e\u54e1": "shain",
+        "\u4f1a\u793e\u54e1": "kaishain",
+        "\u8b66\u5bdf": "keisatsu",
+        "\u5e02\u5f79\u6240": "shiyakusho",
+        "\u304a\u9858\u3044": "onegai",
+        "\u304a\u9858\u3044\u3057\u307e\u3059": "onegaishimasu",
+        "\u304a\u9858\u3044\u81f4\u3057\u307e\u3059": "onegaitashimasu",
+        "\u9811\u5f35\u308b": "ganbaru",
+        "\u9811\u5f35\u3063\u3066": "ganbatte",
+        "\u9811\u5f35\u308c": "ganbare",
+        "\u9811\u5f35\u308d\u3046": "ganbarou",
+        "\u9811\u5f35\u308a\u307e\u3059": "ganbarimasu",
+        "\u9811\u5f35\u3089\u306a\u3044": "ganbaranai",
+        "\u624b\u4f1d\u3046": "tetsudau",
+        "\u624b\u4f1d\u3063\u3066": "tetsudatte",
+        "\u624b\u4f1d\u3044": "tetsudai",
+        "\u624b\u4f1d\u3044\u307e\u3059": "tetsudaimasu",
+        "\u8a71\u3057\u5408\u3046": "hanashiau",
+        "\u8a71\u3057\u5408\u3063\u3066": "hanashiatte",
+        "\u6301\u3061\u5e30\u308b": "mochikaeru",
+        "\u6301\u3061\u5e30\u3063\u3066": "mochikaette",
+        "\u5f15\u3063\u8d8a\u3059": "hikkosu",
+        "\u5f15\u3063\u8d8a\u3057\u3066": "hikkoshite",
+        "\u5f15\u3063\u8d8a\u3057": "hikkoshi",
+        "\u7e70\u308a\u8fd4\u3059": "kurikaesu",
+        "\u7e70\u308a\u8fd4\u3057\u3066": "kurikaeshite",
+        "\u7acb\u3061\u4e0a\u304c\u308b": "tachiagaru",
+        "\u98db\u3073\u51fa\u3059": "tobidasu",
+        "\u98db\u3073\u51fa\u3057\u3066": "tobidashite",
+        "\u601d\u3044\u51fa\u3059": "omoidasu",
+        "\u601d\u3044\u51fa\u3057\u3066": "omoidashite",
+        "\u898b\u3064\u3051\u308b": "mitsukeru",
+        "\u898b\u3064\u3051\u3066": "mitsukete",
+        "\u898b\u3064\u304b\u308b": "mitsukaru",
+        "\u8fd1\u3065\u304f": "chikazuku",
+        "\u8fd1\u3065\u3044\u3066": "chikazuite",
+        "\u4f5c\u308a\u51fa\u3059": "tsukuridasu",
+        "\u66f8\u304d\u8fbc\u3080": "kakikomu",
+        "\u66f8\u304d\u8fbc\u3093\u3067": "kakikonde",
+        "\u843d\u3061\u7740\u304f": "ochitsuku",
+        "\u843d\u3061\u7740\u3044\u3066": "ochitsuite",
+    };
+
+    function lookupCompound(text, pos) {
+        var best = null;
+        var candidate = "";
+        for (var ci = pos; ci < text.length; ci++) {
+            candidate += text[ci];
+            var reading = compoundsMap[candidate];
+            if (reading) best = { match: candidate, reading: reading };
+        }
+        return best;
+    }
 
     function containsJapanese(text) { return japaneseRegex.test(text); }
 
@@ -182,6 +341,21 @@
 
     function escapeHtml(text) {
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function renderCompoundHtml(matchText, reading) {
+        var inner = "";
+        for (var ci = 0; ci < matchText.length; ci++) {
+            var ch = matchText[ci];
+            if (kanjiRegex.test(ch)) {
+                inner += "<ruby data-kanji=\"" + ch + "\">" + ch + "</ruby>";
+            } else {
+                inner += escapeHtml(ch);
+            }
+        }
+        return "<span style=\"display:inline-flex;flex-direction:column;align-items:center;vertical-align:top;line-height:1.3\">" +
+            "<span>" + inner + "</span>" +
+            "<span style=\"font-size:var(--jp-ruby-font-size,0.75em);line-height:1.1;opacity:0.65;display:block;text-align:center;letter-spacing:0\">" + reading + "</span></span>";
     }
 
     function getCharReading(char, nextChar, isLast) {
@@ -198,10 +372,6 @@
     }
 
     function renderRubyText(text) {
-        if (wordOverrides[text]) {
-            if (!settings.annotateKana && !settings.annotateKanji) return escapeHtml(text);
-            return "<ruby>" + text + "<rt>" + wordOverrides[text] + "</rt></ruby>";
-        }
         var result = "", i = 0;
         while (i < text.length) {
             var char = text[i];
@@ -211,7 +381,7 @@
                     if (!settings.annotateKana && !settings.annotateKanji) {
                         result += escapeHtml(nameMatch.name);
                     } else {
-                        result += "<ruby>" + escapeHtml(nameMatch.name) + "<rt>" + nameMatch.reading + "</rt></ruby>";
+                        result += renderCompoundHtml(nameMatch.name, nameMatch.reading);
                     }
                     i += nameMatch.name.length;
                     continue;
@@ -224,14 +394,6 @@
                 }
                 var jpBlock = text.slice(jpStart, i);
                 var isLast = i >= text.length || !japaneseRegex.test(text[i]);
-                if (wordOverrides[jpBlock]) {
-                    if (!settings.annotateKana && !settings.annotateKanji) {
-                        result += escapeHtml(jpBlock);
-                    } else {
-                        result += "<ruby>" + jpBlock + "<rt>" + wordOverrides[jpBlock] + "</rt></ruby>";
-                    }
-                    continue;
-                }
                 for (var j = 0; j < jpBlock.length; j++) {
                     var c = jpBlock[j];
                     var next = j + 1 < jpBlock.length ? jpBlock[j + 1] : "";
@@ -251,28 +413,105 @@
                         if (settings.annotateKana) {
                             var reading = getCharReading(c, next, isLastInBlock);
                             result += reading !== c
-                                ? "<ruby>" + c + "<rt>" + reading + "</rt></ruby>"
+                                ? "<ruby>" + c + "<rt>" + reading + "</rt></ruby> "
                                 : escapeHtml(c);
                         } else {
                             result += escapeHtml(c);
                         }
                     } else {
                         if (settings.annotateKanji) {
+                            // 1. Check for compound word starting at this position
+                            var compound = lookupCompound(jpBlock, j);
+                            if (compound) {
+                                // Try to split compound reading per-character by matching all possible readings
+                                var perCharReadings = [];
+                                var remaining = compound.reading;
+                                var canSplit = true;
+                                for (var ci = 0; ci < compound.match.length; ci++) {
+                                    var cch = compound.match[ci];
+                                    var candidates = [];
+                                    if (kanjiRegex.test(cch)) {
+                                        if (ci > 0) {
+                                            var pairKana = compoundReadings[compound.match[ci - 1] + cch];
+                                            if (pairKana) candidates.push(toRomaji(pairKana));
+                                        }
+                                        var dictEntry = lookupKanji(cch);
+                                        if (dictEntry) {
+                                            for (var oi = 0; oi < dictEntry.on.length; oi++) candidates.push(toRomaji(dictEntry.on[oi]));
+                                            for (var ki = 0; ki < dictEntry.kun.length; ki++) {
+                                                var kd = dictEntry.kun[ki];
+                                                var dot = kd.lastIndexOf(".");
+                                                var stem = dot >= 0 ? kd.slice(0, dot) : kd;
+                                                candidates.push(toRomaji(stem));
+                                            }
+                                        }
+                                    } else {
+                                        candidates.push(toRomaji(cch));
+                                    }
+                                    var matched = "";
+                                    for (var ci2 = 0; ci2 < candidates.length; ci2++) {
+                                        if (candidates[ci2] && remaining.startsWith(candidates[ci2])) {
+                                            matched = candidates[ci2];
+                                            break;
+                                        }
+                                    }
+                                    if (!matched) { canSplit = false; break; }
+                                    perCharReadings.push(matched);
+                                    remaining = remaining.slice(matched.length);
+                                }
+                                if (canSplit && remaining === "") {
+                                    for (var ci = 0; ci < compound.match.length; ci++) {
+                                        var cch = compound.match[ci];
+                                        var cr = perCharReadings[ci];
+                                        if (kanjiRegex.test(cch)) {
+                                            result += "<ruby data-kanji=\"" + cch + "\">" + cch + "<rt>" + cr + "</rt></ruby> ";
+                                        } else if (kanaRegex.test(cch) && settings.annotateKana) {
+                                            result += "<ruby>" + cch + "<rt>" + cr + "</rt></ruby> ";
+                                        } else {
+                                            result += escapeHtml(cch);
+                                        }
+                                    }
+                                } else {
+                                    result += renderCompoundHtml(compound.match, compound.reading);
+                                }
+                                j += compound.match.length - 1;
+                                continue;
+                            }
+
+                            // 2. Collect okurigana (consecutive hiragana after this kanji)
                             var okurigana = "";
                             var k = j + 1;
                             while (k < jpBlock.length && hiraganaRegex.test(jpBlock[k])) {
                                 okurigana += jpBlock[k];
                                 k++;
                             }
+
+                            // 3. If the collected hiragana are entirely grammatical particles, it's not okurigana
+                            if (okurigana && okurigana.split("").every(function (ch) { return particles.has(ch); })) {
+                                okurigana = "";
+                            }
+
+                            // 4. Determine reading preference
                             var nextIsKana = !!okurigana;
                             var nextNext = okurigana ? okurigana[0] : (jpBlock[j + 1] || "");
                             var nextIsKanji = nextNext && japaneseRegex.test(nextNext) && !kanaRegex.test(nextNext);
                             var pref = nextIsKana ? "kun" : nextIsKanji ? "on" : settings.readingPreference;
                             if (c === "\u6b73" && /[0-9]/.test(text.slice(jpStart + j - 1, jpStart + j) || "")) pref = "on";
                             if (forceOnKanji.has(c)) pref = "on";
-                            var reading = getKanjiReading(c, pref, okurigana || undefined);
+
+                            // 5. Compute reading via compound override → suffix → dictionary
+                            var reading = null;
+                            if (j > 0) {
+                                var compoundKana = compoundReadings[jpBlock[j - 1] + c];
+                                if (compoundKana) reading = toRomaji(compoundKana);
+                            }
+                            if (!reading && suffixKanji.has(c) && j > 0 && !okurigana && j === jpBlock.length - 1) {
+                                reading = getKanjiReading(c, "on");
+                            }
+                            if (!reading) reading = getKanjiReading(c, pref, okurigana || undefined);
+
                             if (reading) {
-                                result += "<ruby data-kanji=\"" + c + "\">" + c + "<rt>" + reading + "</rt></ruby>";
+                                result += "<ruby data-kanji=\"" + c + "\">" + c + "<rt>" + reading + "</rt></ruby> ";
                             } else {
                                 result += escapeHtml(c);
                             }
@@ -518,6 +757,7 @@
         if (!target) return;
         var char = target.getAttribute("data-kanji");
         if (!char) return;
+        char = char[0] || "";
         var info = lookupKanji(char);
         if (info) {
             cancelHide();

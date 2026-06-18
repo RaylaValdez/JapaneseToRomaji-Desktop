@@ -1,6 +1,6 @@
 {
     "name": "japanese-to-romaji-injector",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "description": "Injects Japanese ruby annotations into Discord via Chrome DevTools Protocol",
     "author": "RaylaValdez",
     "main": "main.js",
